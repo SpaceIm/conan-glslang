@@ -15,3 +15,5 @@ class TestPackageConan(ConanFile):
         if not tools.cross_building(self.settings):
             bin_path = os.path.join("bin", "test_package")
             self.run(bin_path, run_environment=True)
+            shader_name = os.path.join(self.source_folder, "test_package.vert")
+            self.run("glslangValidator \"{}\"".format(shader_name), run_environment=True)

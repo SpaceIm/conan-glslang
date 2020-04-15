@@ -91,28 +91,24 @@ class GlslangConan(ConanFile):
         tools.rmdir(os.path.join(self.package_folder, "lib", "cmake"))
 
     def package_info(self):
-        # CMake Targets:
-        # - OGLCompiler
-        # - SPIRV
-        # - SPVRemapper
-        # - glslang
-        # - OSDependent
-        # - HLSL
+        # CMake Targets: SPIRV, glslang, OGLCompiler, OSDependent, SPVRemapper, HLSL
+        # To update when conan components available
         self.cpp_info.names["cmake_find_package"] = "glslang"
         self.cpp_info.names["cmake_find_package_multi"] = "glslang"
-
-        # - OGLCompiler has no dependency
-        # - SPIRV may depend on glslang
-        # - SPVRemapper has no dependency
-        # - glslang depends on OGLCompiler and OSDependent (and HLSL if ENABLE_HLSL)
-        # - OSDependent has no dependency (pthread on Linux)
-        # - HLSL has no dependency
-        self.cpp_info.libs = ["SPIRV", "glslang", "OGLCompiler", "OSDependent"]
-        if self.options.SPVRemapper:
-            self.cpp_info.libs.append("SPVRemapper")
-        if self.options.hlsl:
-            self.cpp_info.libs.append("HLSL")
+        self.cpp_info.libs = self._get_ordered_libs()
         if self.settings.os == "Linux":
             self.cpp_info.system_libs.append("pthread") # for OSDependent
         if self.options.build_executables:
             self.env_info.PATH.append(os.path.join(self.package_folder, "bin"))
+
+    def _get_ordered_libs(self):
+        # - SPIRV depends on glslang if with_spirv_tools if False
+        # - glslang depends on OGLCompiler and OSDependent (and HLSL if ENABLE_HLSL)
+        libs = ["SPIRV", "glslang", "OGLCompiler", "OSDependent"]
+        if self.options.SPVRemapper:
+            libs.append("SPVRemapper")
+        if self.options.hlsl:
+            libs.append("HLSL")
+        if self.settings.os == "Windows" and self.settings.build_type == "Debug":
+            libs = [lib + "d" for lib in libs]
+        return libs

@@ -61,8 +61,25 @@ class GlslangConan(ConanFile):
         os.rename(self.name + "-" + self.version, self._source_subfolder)
 
     def build(self):
+        self._patches_sources()
         cmake = self._configure_cmake()
         cmake.build()
+
+    def _patches_sources(self):
+        # Do not force PIC
+        cmake_files_to_fix = [
+            {"target": "OGLCompiler", "relpath": os.path.join("OGLCompilersDLL", "CMakeLists.txt")},
+            {"target": "SPIRV"      , "relpath": os.path.join("SPIRV", "CMakeLists.txt")},
+            {"target": "SPVRemapper", "relpath": os.path.join("SPIRV", "CMakeLists.txt")},
+            {"target": "glslang"    , "relpath": os.path.join("glslang", "CMakeLists.txt")},
+            {"target": "OSDependent", "relpath": os.path.join("glslang", "OSDependent", "Unix","CMakeLists.txt")},
+            {"target": "OSDependent", "relpath": os.path.join("glslang", "OSDependent", "Windows","CMakeLists.txt")},
+            {"target": "HLSL"       , "relpath": os.path.join("hlsl", "CMakeLists.txt")},
+        ]
+        for cmake_file in cmake_files_to_fix:
+            tools.replace_in_file(os.path.join(self._source_subfolder, cmake_file["relpath"]),
+                                  "set_property(TARGET {} PROPERTY POSITION_INDEPENDENT_CODE ON)".format(cmake_file["target"]),
+                                  "")
 
     def _configure_cmake(self):
         if self._cmake:

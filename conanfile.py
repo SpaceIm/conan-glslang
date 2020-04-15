@@ -48,8 +48,8 @@ class GlslangConan(ConanFile):
     def configure(self):
         if self.settings.compiler.cppstd:
             tools.check_min_cppstd(self, 11)
-        if self.settings.os == "Windows" and self.options.shared:
-            raise ConanInvalidConfiguration("Current glslang shared library build is broken on Windows")
+        if self.options.shared and self.settings.os in ["Windows", "Macos"]:
+            raise ConanInvalidConfiguration("Current glslang shared library build is broken on Windows and Macos")
 
     def requirements(self):
         if self.options.with_spirv_tools:

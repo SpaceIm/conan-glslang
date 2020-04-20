@@ -11,7 +11,7 @@ class GlslangConan(ConanFile):
     topics = ("conan", "glslang", "glsl", "hlsl", "spirv", "spir-v", "validation", "translation")
     homepage = "https://github.com/KhronosGroup/glslang"
     url = "https://github.com/conan-io/conan-center-index"
-    exports_sources = "CMakeLists.txt"
+    exports_sources = ["CMakeLists.txt", "patches/**"]
     generators = "cmake"
     settings = "os", "arch", "compiler", "build_type"
     short_paths = True
@@ -21,7 +21,7 @@ class GlslangConan(ConanFile):
         "build_executables": [True, False],
         "SPVRemapper": [True, False],
         "hlsl": [True, False],
-        "with_spirv_tools": [True, False]
+        "enable_optimizer": [True, False]
     }
     default_options = {
         "shared": False,
@@ -29,7 +29,7 @@ class GlslangConan(ConanFile):
         "build_executables": True,
         "SPVRemapper": True,
         "hlsl": True,
-        "with_spirv_tools": False
+        "enable_optimizer": False
     }
 
     _cmake = None
@@ -53,8 +53,8 @@ class GlslangConan(ConanFile):
             raise ConanInvalidConfiguration("Current glslang shared library build is broken on Windows and Macos")
 
     def requirements(self):
-        if self.options.with_spirv_tools:
-            raise ConanInvalidConfiguration("spirv-tools not yet available in conan-center-index")
+        if self.options.enable_optimizer:
+            raise ConanInvalidConfiguration("Optimizer requires spirv-tools, which is not yet available in conan-center-index")
             self.requires.add("spirv-tools/2020.1")
 
     def source(self):
@@ -67,6 +67,8 @@ class GlslangConan(ConanFile):
         cmake.build()
 
     def _patches_sources(self):
+        for patch in self.conan_data.get("patches", {}).get(self.version, []):
+            tools.patch(**patch)
         # Do not force PIC
         cmake_files_to_fix = [
             {"target": "OGLCompiler", "relpath": os.path.join("OGLCompilersDLL", "CMakeLists.txt")},
@@ -95,7 +97,7 @@ class GlslangConan(ConanFile):
         self._cmake.definitions["ENABLE_EMSCRIPTEN_SINGLE_FILE"] = False
         self._cmake.definitions["ENABLE_EMSCRIPTEN_ENVIRONMENT_NODE"] = False
         self._cmake.definitions["ENABLE_HLSL"] = self.options.hlsl
-        self._cmake.definitions["ENABLE_OPT"] = self.options.with_spirv_tools
+        self._cmake.definitions["ENABLE_OPT"] = self.options.enable_optimizer
         self._cmake.definitions["ENABLE_PCH"] = True
         self._cmake.definitions["ENABLE_CTEST"] = False
         self._cmake.definitions["USE_CCACHE"] = False
@@ -120,7 +122,7 @@ class GlslangConan(ConanFile):
             self.env_info.PATH.append(os.path.join(self.package_folder, "bin"))
 
     def _get_ordered_libs(self):
-        # - SPIRV depends on glslang if with_spirv_tools if False
+        # - SPIRV depends on glslang
         # - glslang depends on OGLCompiler and OSDependent (and HLSL if ENABLE_HLSL)
         libs = ["SPIRV", "glslang", "OGLCompiler", "OSDependent"]
         if self.options.SPVRemapper:

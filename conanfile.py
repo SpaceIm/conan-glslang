@@ -19,7 +19,7 @@ class GlslangConan(ConanFile):
         "shared": [True, False],
         "fPIC": [True, False],
         "build_executables": [True, False],
-        "SPVRemapper": [True, False],
+        "spv_remapper": [True, False],
         "hlsl": [True, False],
         "enable_optimizer": [True, False]
     }
@@ -27,7 +27,7 @@ class GlslangConan(ConanFile):
         "shared": False,
         "fPIC": True,
         "build_executables": True,
-        "SPVRemapper": True,
+        "spv_remapper": True,
         "hlsl": True,
         "enable_optimizer": False
     }
@@ -90,7 +90,7 @@ class GlslangConan(ConanFile):
         self._cmake = CMake(self)
         self._cmake.definitions["BUILD_EXTERNAL"] = False
         self._cmake.definitions["SKIP_GLSLANG_INSTALL"] = False
-        self._cmake.definitions["ENABLE_SPVREMAPPER"] = self.options.SPVRemapper
+        self._cmake.definitions["ENABLE_SPVREMAPPER"] = self.options.spv_remapper
         self._cmake.definitions["ENABLE_GLSLANG_BINARIES"] = self.options.build_executables
         self._cmake.definitions["ENABLE_GLSLANG_WEB"] = False
         self._cmake.definitions["ENABLE_GLSLANG_WEB_DEVEL"] = False
@@ -112,7 +112,7 @@ class GlslangConan(ConanFile):
 
     def package_info(self):
         # CMake Targets: SPIRV, glslang, OGLCompiler, OSDependent, SPVRemapper, HLSL
-        # To update when conan components available
+        # TODO: update when conan components available
         self.cpp_info.names["cmake_find_package"] = "glslang"
         self.cpp_info.names["cmake_find_package_multi"] = "glslang"
         self.cpp_info.libs = self._get_ordered_libs()
@@ -125,7 +125,7 @@ class GlslangConan(ConanFile):
         # - SPIRV depends on glslang
         # - glslang depends on OGLCompiler and OSDependent (and HLSL if ENABLE_HLSL)
         libs = ["SPIRV", "glslang", "OGLCompiler", "OSDependent"]
-        if self.options.SPVRemapper:
+        if self.options.spv_remapper:
             libs.append("SPVRemapper")
         if self.options.hlsl:
             libs.append("HLSL")

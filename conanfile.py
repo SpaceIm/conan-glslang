@@ -120,6 +120,8 @@ class GlslangConan(ConanFile):
             self.cpp_info.system_libs.append("pthread") # for OSDependent
         if self.options.hlsl:
             self.cpp_info.defines.append("ENABLE_HLSL")
+        if self.options.enable_optimizer:
+            self.cpp_info.defines.append("ENABLE_OPT")
         if self.options.build_executables:
             self.env_info.PATH.append(os.path.join(self.package_folder, "bin"))
 

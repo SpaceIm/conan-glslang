@@ -29,7 +29,7 @@ class GlslangConan(ConanFile):
         "build_executables": True,
         "spv_remapper": True,
         "hlsl": True,
-        "enable_optimizer": False
+        "enable_optimizer": True
     }
 
     _cmake = None
@@ -47,6 +47,8 @@ class GlslangConan(ConanFile):
             del self.options.fPIC
 
     def configure(self):
+        if self.options.shared:
+            del self.options.fPIC
         if self.settings.compiler.cppstd:
             tools.check_min_cppstd(self, 11)
         if self.options.shared and self.settings.os in ["Windows", "Macos"]:
@@ -54,8 +56,7 @@ class GlslangConan(ConanFile):
 
     def requirements(self):
         if self.options.enable_optimizer:
-            raise ConanInvalidConfiguration("Optimizer requires spirv-tools, which is not yet available in conan-center-index")
-            self.requires.add("spirv-tools/2020.1")
+            self.requires("spirv-tools/v2020.3")
 
     def source(self):
         tools.get(**self.conan_data["sources"][self.version])
@@ -69,20 +70,21 @@ class GlslangConan(ConanFile):
     def _patches_sources(self):
         for patch in self.conan_data.get("patches", {}).get(self.version, []):
             tools.patch(**patch)
-        # Do not force PIC
-        cmake_files_to_fix = [
-            {"target": "OGLCompiler", "relpath": os.path.join("OGLCompilersDLL", "CMakeLists.txt")},
-            {"target": "SPIRV"      , "relpath": os.path.join("SPIRV", "CMakeLists.txt")},
-            {"target": "SPVRemapper", "relpath": os.path.join("SPIRV", "CMakeLists.txt")},
-            {"target": "glslang"    , "relpath": os.path.join("glslang", "CMakeLists.txt")},
-            {"target": "OSDependent", "relpath": os.path.join("glslang", "OSDependent", "Unix","CMakeLists.txt")},
-            {"target": "OSDependent", "relpath": os.path.join("glslang", "OSDependent", "Windows","CMakeLists.txt")},
-            {"target": "HLSL"       , "relpath": os.path.join("hlsl", "CMakeLists.txt")},
-        ]
-        for cmake_file in cmake_files_to_fix:
-            tools.replace_in_file(os.path.join(self._source_subfolder, cmake_file["relpath"]),
-                                  "set_property(TARGET {} PROPERTY POSITION_INDEPENDENT_CODE ON)".format(cmake_file["target"]),
-                                  "")
+        # Do not force PIC if static (but keep it if shared, because OGLCompiler and OSDependent are still static)
+        if not self.options.shared:
+            cmake_files_to_fix = [
+                {"target": "OGLCompiler", "relpath": os.path.join("OGLCompilersDLL", "CMakeLists.txt")},
+                {"target": "SPIRV"      , "relpath": os.path.join("SPIRV", "CMakeLists.txt")},
+                {"target": "SPVRemapper", "relpath": os.path.join("SPIRV", "CMakeLists.txt")},
+                {"target": "glslang"    , "relpath": os.path.join("glslang", "CMakeLists.txt")},
+                {"target": "OSDependent", "relpath": os.path.join("glslang", "OSDependent", "Unix","CMakeLists.txt")},
+                {"target": "OSDependent", "relpath": os.path.join("glslang", "OSDependent", "Windows","CMakeLists.txt")},
+                {"target": "HLSL"       , "relpath": os.path.join("hlsl", "CMakeLists.txt")},
+            ]
+            for cmake_file in cmake_files_to_fix:
+                tools.replace_in_file(os.path.join(self._source_subfolder, cmake_file["relpath"]),
+                                      "set_property(TARGET {} PROPERTY POSITION_INDEPENDENT_CODE ON)".format(cmake_file["target"]),
+                                      "")
 
     def _configure_cmake(self):
         if self._cmake:
@@ -118,28 +120,52 @@ class GlslangConan(ConanFile):
         tools.rmdir(os.path.join(self.package_folder, "lib", "cmake"))
 
     def package_info(self):
-        # CMake Targets: SPIRV, glslang, OGLCompiler, OSDependent, SPVRemapper, HLSL
-        # TODO: update when conan components available
-        self.cpp_info.names["cmake_find_package"] = "glslang"
-        self.cpp_info.names["cmake_find_package_multi"] = "glslang"
-        self.cpp_info.libs = self._get_ordered_libs()
+        # TODO: glslang exports non-namespaced targets but without config file...
+        # OSDependent
+        self.cpp_info.components["osdependent"].names["cmake_find_package"] = "OSDependent"
+        self.cpp_info.components["osdependent"].names["cmake_find_package_multi"] = "OSDependent"
+        self.cpp_info.components["osdependent"].libs = [self._get_decorated_lib("OSDependent")]
         if self.settings.os == "Linux":
-            self.cpp_info.system_libs.append("pthread") # for OSDependent
-        if self.options.hlsl:
-            self.cpp_info.defines.append("ENABLE_HLSL")
+            self.cpp_info.components["osdependent"].system_libs.append("pthread")
+        # OGLCompiler
+        self.cpp_info.components["oglcompiler"].names["cmake_find_package"] = "OGLCompiler"
+        self.cpp_info.components["oglcompiler"].names["cmake_find_package_multi"] = "OGLCompiler"
+        self.cpp_info.components["oglcompiler"].libs = [self._get_decorated_lib("OGLCompiler")]
+        # glslang
+        self.cpp_info.components["glslang-core"].names["cmake_find_package"] = "glslang"
+        self.cpp_info.components["glslang-core"].names["cmake_find_package_multi"] = "glslang"
+        self.cpp_info.components["glslang-core"].libs = [self._get_decorated_lib("glslang")]
+        if self.settings.os == "Linux":
+            self.cpp_info.components["glslang-core"].system_libs.extend(["m", "pthread"])
+        self.cpp_info.components["glslang-core"].requires = ["oglcompiler", "osdependent"]
+        # SPIRV
+        self.cpp_info.components["spirv"].names["cmake_find_package"] = "SPIRV"
+        self.cpp_info.components["spirv"].names["cmake_find_package_multi"] = "SPIRV"
+        self.cpp_info.components["spirv"].libs = [self._get_decorated_lib("SPIRV")]
+        self.cpp_info.components["spirv"].requires = ["glslang-core"]
         if self.options.enable_optimizer:
-            self.cpp_info.defines.append("ENABLE_OPT")
-        if self.options.build_executables:
-            self.env_info.PATH.append(os.path.join(self.package_folder, "bin"))
-
-    def _get_ordered_libs(self):
-        # - SPIRV depends on glslang
-        # - glslang depends on OGLCompiler and OSDependent (and HLSL if ENABLE_HLSL)
-        libs = ["SPIRV", "glslang", "OGLCompiler", "OSDependent"]
-        if self.options.spv_remapper:
-            libs.append("SPVRemapper")
+            self.cpp_info.components["spirv"].requires.append("spirv-tools::spirv-tools-opt")
+            self.cpp_info.components["spirv"].defines.append("ENABLE_OPT")
+        # HLSL
         if self.options.hlsl:
-            libs.append("HLSL")
+            self.cpp_info.components["hlsl"].names["cmake_find_package"] = "HLSL"
+            self.cpp_info.components["hlsl"].names["cmake_find_package_multi"] = "HLSL"
+            self.cpp_info.components["hlsl"].libs = [self._get_decorated_lib("HLSL")]
+            self.cpp_info.components["glslang-core"].requires.append("hlsl")
+            self.cpp_info.components["glslang-core"].defines.append("ENABLE_HLSL")
+        # SPVRemapper
+        if self.options.spv_remapper:
+            self.cpp_info.components["spvremapper"].names["cmake_find_package"] = "SPVRemapper"
+            self.cpp_info.components["spvremapper"].names["cmake_find_package_multi"] = "SPVRemapper"
+            self.cpp_info.components["spvremapper"].libs = [self._get_decorated_lib("SPVRemapper")]
+
+        if self.options.build_executables:
+            bin_path = os.path.join(self.package_folder, "bin")
+            self.output.info("Appending PATH environment variable: {}".format(bin_path))
+            self.env_info.PATH.append(bin_path)
+
+    def _get_decorated_lib(self, name):
+        libname = name
         if self.settings.os == "Windows" and self.settings.build_type == "Debug":
-            libs = [lib + "d" for lib in libs]
-        return libs
+            libname += "d"
+        return libname

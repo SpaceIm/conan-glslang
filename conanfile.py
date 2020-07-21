@@ -120,28 +120,52 @@ class GlslangConan(ConanFile):
         tools.rmdir(os.path.join(self.package_folder, "lib", "cmake"))
 
     def package_info(self):
-        # CMake Targets: SPIRV, glslang, OGLCompiler, OSDependent, SPVRemapper, HLSL
-        # TODO: update when conan components available
-        self.cpp_info.names["cmake_find_package"] = "glslang"
-        self.cpp_info.names["cmake_find_package_multi"] = "glslang"
-        self.cpp_info.libs = self._get_ordered_libs()
+        # TODO: glslang exports non-namespaced targets but without config file...
+        # OSDependent
+        self.cpp_info.components["osdependent"].names["cmake_find_package"] = "OSDependent"
+        self.cpp_info.components["osdependent"].names["cmake_find_package_multi"] = "OSDependent"
+        self.cpp_info.components["osdependent"].libs = [self._get_decorated_lib("OSDependent")]
         if self.settings.os == "Linux":
-            self.cpp_info.system_libs.append("pthread") # for OSDependent
-        if self.options.hlsl:
-            self.cpp_info.defines.append("ENABLE_HLSL")
+            self.cpp_info.components["osdependent"].system_libs.append("pthread")
+        # OGLCompiler
+        self.cpp_info.components["oglcompiler"].names["cmake_find_package"] = "OGLCompiler"
+        self.cpp_info.components["oglcompiler"].names["cmake_find_package_multi"] = "OGLCompiler"
+        self.cpp_info.components["oglcompiler"].libs = [self._get_decorated_lib("OGLCompiler")]
+        # glslang
+        self.cpp_info.components["glslang-core"].names["cmake_find_package"] = "glslang"
+        self.cpp_info.components["glslang-core"].names["cmake_find_package_multi"] = "glslang"
+        self.cpp_info.components["glslang-core"].libs = [self._get_decorated_lib("glslang")]
+        if self.settings.os == "Linux":
+            self.cpp_info.components["glslang-core"].system_libs.extend(["m", "pthread"])
+        self.cpp_info.components["glslang-core"].requires = ["oglcompiler", "osdependent"]
+        # SPIRV
+        self.cpp_info.components["spirv"].names["cmake_find_package"] = "SPIRV"
+        self.cpp_info.components["spirv"].names["cmake_find_package_multi"] = "SPIRV"
+        self.cpp_info.components["spirv"].libs = [self._get_decorated_lib("SPIRV")]
+        self.cpp_info.components["spirv"].requires = ["glslang-core"]
         if self.options.enable_optimizer:
-            self.cpp_info.defines.append("ENABLE_OPT")
-        if self.options.build_executables:
-            self.env_info.PATH.append(os.path.join(self.package_folder, "bin"))
-
-    def _get_ordered_libs(self):
-        # - SPIRV depends on glslang
-        # - glslang depends on OGLCompiler and OSDependent (and HLSL if ENABLE_HLSL)
-        libs = ["SPIRV", "glslang", "OGLCompiler", "OSDependent"]
-        if self.options.spv_remapper:
-            libs.append("SPVRemapper")
+            self.cpp_info.components["spirv"].requires.append("spirv-tools::spirv-tools-opt")
+            self.cpp_info.components["spirv"].defines.append("ENABLE_OPT")
+        # HLSL
         if self.options.hlsl:
-            libs.append("HLSL")
+            self.cpp_info.components["hlsl"].names["cmake_find_package"] = "HLSL"
+            self.cpp_info.components["hlsl"].names["cmake_find_package_multi"] = "HLSL"
+            self.cpp_info.components["hlsl"].libs = [self._get_decorated_lib("HLSL")]
+            self.cpp_info.components["glslang-core"].requires.append("hlsl")
+            self.cpp_info.components["glslang-core"].defines.append("ENABLE_HLSL")
+        # SPVRemapper
+        if self.options.spv_remapper:
+            self.cpp_info.components["spvremapper"].names["cmake_find_package"] = "SPVRemapper"
+            self.cpp_info.components["spvremapper"].names["cmake_find_package_multi"] = "SPVRemapper"
+            self.cpp_info.components["spvremapper"].libs = [self._get_decorated_lib("SPVRemapper")]
+
+        if self.options.build_executables:
+            bin_path = os.path.join(self.package_folder, "bin")
+            self.output.info("Appending PATH environment variable: {}".format(bin_path))
+            self.env_info.PATH.append(bin_path)
+
+    def _get_decorated_lib(self, name):
+        libname = name
         if self.settings.os == "Windows" and self.settings.build_type == "Debug":
-            libs = [lib + "d" for lib in libs]
-        return libs
+            libname += "d"
+        return libname

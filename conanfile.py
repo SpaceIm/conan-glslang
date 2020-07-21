@@ -47,6 +47,8 @@ class GlslangConan(ConanFile):
             del self.options.fPIC
 
     def configure(self):
+        if self.options.shared:
+            del self.options.fPIC
         if self.settings.compiler.cppstd:
             tools.check_min_cppstd(self, 11)
         if self.options.shared and self.settings.os in ["Windows", "Macos"]:
@@ -69,20 +71,21 @@ class GlslangConan(ConanFile):
     def _patches_sources(self):
         for patch in self.conan_data.get("patches", {}).get(self.version, []):
             tools.patch(**patch)
-        # Do not force PIC
-        cmake_files_to_fix = [
-            {"target": "OGLCompiler", "relpath": os.path.join("OGLCompilersDLL", "CMakeLists.txt")},
-            {"target": "SPIRV"      , "relpath": os.path.join("SPIRV", "CMakeLists.txt")},
-            {"target": "SPVRemapper", "relpath": os.path.join("SPIRV", "CMakeLists.txt")},
-            {"target": "glslang"    , "relpath": os.path.join("glslang", "CMakeLists.txt")},
-            {"target": "OSDependent", "relpath": os.path.join("glslang", "OSDependent", "Unix","CMakeLists.txt")},
-            {"target": "OSDependent", "relpath": os.path.join("glslang", "OSDependent", "Windows","CMakeLists.txt")},
-            {"target": "HLSL"       , "relpath": os.path.join("hlsl", "CMakeLists.txt")},
-        ]
-        for cmake_file in cmake_files_to_fix:
-            tools.replace_in_file(os.path.join(self._source_subfolder, cmake_file["relpath"]),
-                                  "set_property(TARGET {} PROPERTY POSITION_INDEPENDENT_CODE ON)".format(cmake_file["target"]),
-                                  "")
+        # Do not force PIC if static (but keep it if shared, because OGLCompiler and OSDependent are still static)
+        if not self.options.shared:
+            cmake_files_to_fix = [
+                {"target": "OGLCompiler", "relpath": os.path.join("OGLCompilersDLL", "CMakeLists.txt")},
+                {"target": "SPIRV"      , "relpath": os.path.join("SPIRV", "CMakeLists.txt")},
+                {"target": "SPVRemapper", "relpath": os.path.join("SPIRV", "CMakeLists.txt")},
+                {"target": "glslang"    , "relpath": os.path.join("glslang", "CMakeLists.txt")},
+                {"target": "OSDependent", "relpath": os.path.join("glslang", "OSDependent", "Unix","CMakeLists.txt")},
+                {"target": "OSDependent", "relpath": os.path.join("glslang", "OSDependent", "Windows","CMakeLists.txt")},
+                {"target": "HLSL"       , "relpath": os.path.join("hlsl", "CMakeLists.txt")},
+            ]
+            for cmake_file in cmake_files_to_fix:
+                tools.replace_in_file(os.path.join(self._source_subfolder, cmake_file["relpath"]),
+                                      "set_property(TARGET {} PROPERTY POSITION_INDEPENDENT_CODE ON)".format(cmake_file["target"]),
+                                      "")
 
     def _configure_cmake(self):
         if self._cmake:

@@ -29,7 +29,7 @@ class GlslangConan(ConanFile):
         "build_executables": True,
         "spv_remapper": True,
         "hlsl": True,
-        "enable_optimizer": False
+        "enable_optimizer": True
     }
 
     _cmake = None
@@ -56,8 +56,7 @@ class GlslangConan(ConanFile):
 
     def requirements(self):
         if self.options.enable_optimizer:
-            raise ConanInvalidConfiguration("Optimizer requires spirv-tools, which is not yet available in conan-center-index")
-            self.requires.add("spirv-tools/2020.1")
+            self.requires("spirv-tools/v2020.3")
 
     def source(self):
         tools.get(**self.conan_data["sources"][self.version])

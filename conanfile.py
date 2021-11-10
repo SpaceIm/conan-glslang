@@ -72,16 +72,13 @@ class GlslangConan(ConanFile):
     def validate(self):
         if self.settings.compiler.cppstd:
             tools.check_min_cppstd(self, 11)
+
         if self.options.enable_optimizer and self.options["spirv-tools"].shared:
             raise ConanInvalidConfiguration("glslang with enable_optimizer requires static spirv-tools, because SPIRV-Tools-opt is not built if shared")
 
         # see https://github.com/KhronosGroup/glslang/issues/2283
-        if tools.Version(self.version) < "11.0.0":
-            if self.options.shared and (self.settings.os == "Windows" or tools.is_apple_os(self.settings.os)):
-                raise ConanInvalidConfiguration("glslang {} shared library build is broken on Windows and Apple OS".format(self.version))
-        else:
-            if self.options.shared and self.settings.os == "Windows":
-                raise ConanInvalidConfiguration("glslang {} shared library build is broken on Windows.")
+        if self.options.shared and (self.settings.os == "Windows" or (tools.Version(self.version) < "11.0.0" and tools.is_apple_os(self.settings.os))):
+            raise ConanInvalidConfiguration("glslang {} shared library build is broken on {}".format(self.version, self.settings.os))
 
     def source(self):
         tools.get(**self.conan_data["sources"][self.version],

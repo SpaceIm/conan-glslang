@@ -74,9 +74,9 @@ class GlslangConan(ConanFile):
             tools.check_min_cppstd(self, 11)
         if self.options.enable_optimizer and self.options["spirv-tools"].shared:
             raise ConanInvalidConfiguration("glslang with enable_optimizer requires static spirv-tools, because SPIRV-Tools-opt is not built if shared")
-        if tools.Version(self.version) < "11.5.0":
-            if self.options.shared and self.settings.os in ["Windows", "Macos"]:
-                raise ConanInvalidConfiguration("glslang {} shared library build is broken on Windows and Macos".format(self.version))
+        if tools.Version(self.version) < "11.0.0":
+            if self.options.shared and (self.settings.os == "Windows" or tools.is_apple_os(self.settings.os)):
+                raise ConanInvalidConfiguration("glslang {} shared library build is broken on Windows and Apple OS".format(self.version))
 
     def source(self):
         tools.get(**self.conan_data["sources"][self.version],
@@ -100,7 +100,7 @@ class GlslangConan(ConanFile):
                 {"target": "OSDependent", "relpath": os.path.join("glslang", "OSDependent", "Windows","CMakeLists.txt")},
                 {"target": "HLSL"       , "relpath": os.path.join("hlsl", "CMakeLists.txt")},
             ]
-            if tools.Version(self.version) < "11.5.0":
+            if tools.Version(self.version) < "11.0.0":
                 cmake_files_to_fix.append({"target": "glslang"    , "relpath": os.path.join("glslang", "CMakeLists.txt")})
             else:
                 cmake_files_to_fix.append({"target": "glslang-default-resource-limits", "relpath": os.path.join("StandAlone" , "CMakeLists.txt")})
@@ -157,7 +157,7 @@ class GlslangConan(ConanFile):
             self.cpp_info.components["glslang-core"].system_libs.extend(["m", "pthread"])
         self.cpp_info.components["glslang-core"].requires = ["oglcompiler", "osdependent"]
 
-        if tools.Version(self.version) >= "11.5.0":
+        if tools.Version(self.version) >= "11.0.0":
             if self.options.shared:
                 self.cpp_info.components["glslang-core"].defines.append("GLSLANG_IS_SHARED_LIBRARY")
             else:

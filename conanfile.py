@@ -74,9 +74,14 @@ class GlslangConan(ConanFile):
             tools.check_min_cppstd(self, 11)
         if self.options.enable_optimizer and self.options["spirv-tools"].shared:
             raise ConanInvalidConfiguration("glslang with enable_optimizer requires static spirv-tools, because SPIRV-Tools-opt is not built if shared")
+
+        # see https://github.com/KhronosGroup/glslang/issues/2283
         if tools.Version(self.version) < "11.0.0":
             if self.options.shared and (self.settings.os == "Windows" or tools.is_apple_os(self.settings.os)):
                 raise ConanInvalidConfiguration("glslang {} shared library build is broken on Windows and Apple OS".format(self.version))
+        else:
+            if self.options.shared and self.settings.os == "Windows":
+                raise ConanInvalidConfiguration("glslang {} shared library build is broken on Windows.")
 
     def source(self):
         tools.get(**self.conan_data["sources"][self.version],
@@ -90,7 +95,8 @@ class GlslangConan(ConanFile):
     def _patches_sources(self):
         for patch in self.conan_data.get("patches", {}).get(self.version, []):
             tools.patch(**patch)
-        # Do not force PIC if static (but keep it if shared, because OGLCompiler and OSDependent are still static)
+        # Do not force PIC if static (but keep it if shared, because OGLCompiler, OSDependent,
+        # GenericCodeGen and MachineIndependent are still static and linked to glslang shared)
         if not self.options.shared:
             cmake_files_to_fix = [
                 {"target": "OGLCompiler", "relpath": os.path.join("OGLCompilersDLL", "CMakeLists.txt")},
